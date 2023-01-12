@@ -55,7 +55,7 @@ class DataUnclassedCSV:
         return dataset
 
     def unclassed_boxplot(self, dataset, plot_name, max_features_row):
-        """Plot histogram based on input dataset"""
+        """Plot boxplot based on input dataset"""
         dfcopy = dataset.copy()
         max_vector = np.zeros([dataset.shape[1]])
         for i in range(dataset.shape[1]):
