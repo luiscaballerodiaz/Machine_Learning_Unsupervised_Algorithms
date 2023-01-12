@@ -88,12 +88,12 @@ class DataUnclassedCSV:
 
     def unclassed_histogram(self, dataset, plot_name, ncolumns):
         """Plot histogram based on input dataset"""
-        fig, axes = plt.subplots(math.ceil(dataset.shape[1] / ncolumns), ncolumns, figsize=(self.fig_width, self.fig_height))
+        fig, axes = plt.subplots(math.ceil(dataset.shape[1] / ncolumns), ncolumns,
+                                 figsize=(self.fig_width, self.fig_height))
         spare_axes = ncolumns - dataset.shape[1] % ncolumns
         if spare_axes == ncolumns:
             spare_axes = 0
-        for axis in range(ncolumns - 1, spare_axes, -1):
-            print(axis)
+        for axis in range(ncolumns - 1,  ncolumns - 1 - spare_axes, -1):
             fig.delaxes(axes[math.ceil(dataset.shape[1] / ncolumns) - 1, axis])
         ax = axes.ravel()
         for i in range(dataset.shape[1]):
