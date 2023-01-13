@@ -174,13 +174,14 @@ class DataUnclassedCSV:
         print(algorithm + ' tuning time: ' + str(time.time() - ini_time) + ' seconds\n')
         return inertia, silhouette
 
-    def plot_tuning(self, nplots, algorithm, inertia, silhouette):
+    def plot_tuning(self, algorithm, inertia, silhouette):
         """Plot the cluster sweep plot vs inertia to tune the optimum number of clusters"""
         fig, ax1 = plt.subplots(figsize=(self.fig_width, self.fig_height))
         ax2 = ax1.twinx()
         inertia = np.array(inertia)
         silhouette = np.array(silhouette)
-        if (len(algorithm) != nplots) or (inertia.shape[0] != nplots) or (silhouette.shape[0] != nplots):
+        nplots = inertia.shape[0]
+        if (len(algorithm) != nplots) or (silhouette.shape[0] != nplots):
             print('Wrong dimensionality in the input data\n')
             return None
         cmap = cm.get_cmap('tab10')
@@ -315,4 +316,29 @@ class DataUnclassedCSV:
         ax1.grid(visible=True)
         ax2.grid(visible=True)
         plt.savefig('PCA scree plot.png', bbox_inches='tight')
+        plt.clf()
+
+    def plot_cluster_features(self, dataset, cluster_class, ncolumns):
+        """Plot clusters features in a bar plot"""
+        n_clusters = max(cluster_class) + 1
+        fig, axes = plt.subplots(math.ceil(dataset.shape[1] / ncolumns), ncolumns,
+                                 figsize=(self.fig_width, self.fig_height))
+        spare_axes = ncolumns - dataset.shape[1] % ncolumns
+        if spare_axes == ncolumns:
+            spare_axes = 0
+        for axis in range(ncolumns - 1, ncolumns - 1 - spare_axes, -1):
+            fig.delaxes(axes[math.ceil(dataset.shape[1] / ncolumns) - 1, axis])
+        ax = axes.ravel()
+        cmap = cm.get_cmap('tab10')
+        colors = cmap.colors
+        for i in range(dataset.shape[1]):
+            for cluster in range(n_clusters):
+                ax[i].bar(1 + cluster * self.bar_width, dataset.iloc[cluster_class == cluster, i].mean(),
+                          color=colors[cluster], width=self.bar_width, edgecolor='black', label='cluster' + str(cluster))
+            ax[i].set_title(self.list_features[i], fontsize=10, y=1.0, pad=-14, fontweight='bold')
+            ax[i].grid(visible=True)
+            ax[i].tick_params(axis='both', labelsize=8)
+            ax[i].set_ylabel('Feature magnitude', fontsize=8)
+        ax[0].legend()
+        plt.savefig('Cluster features analysis.png', bbox_inches='tight')
         plt.clf()

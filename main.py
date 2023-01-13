@@ -14,10 +14,14 @@ datacsv.unclassed_boxplot(dataset=df, plot_name='Scrubbed boxplot', max_features
 datacsv.unclassed_histogram(dataset=df, plot_name='Scrubbed histogram', ncolumns=3)
 
 kmeans_inertia, kmeans_silhouette = datacsv.clustering_tuning('KMeans')
-agg_inertia, agg_silhouette = datacsv.clustering_tuning('Agglomerative')
+#agg_inertia, agg_silhouette = datacsv.clustering_tuning('Agglomerative')
 
-datacsv.plot_tuning(nplots=2, algorithm=['KMeans', 'Agglomerative'], inertia=[kmeans_inertia, agg_inertia],
-                    silhouette=[kmeans_silhouette, agg_silhouette])
+#datacsv.plot_tuning(algorithm=['KMeans', 'Agglomerative'], inertia=[kmeans_inertia, agg_inertia],
+#                    silhouette=[kmeans_silhouette, agg_silhouette])
 
 kmeans_assignment = datacsv.apply_clustering('KMeans', n_clusters=3)
-agg_assignment = datacsv.apply_clustering('Agglomerative', n_clusters=3)
+#agg_assignment = datacsv.apply_clustering('Agglomerative', n_clusters=3)
+
+datacsv.plot_cluster_features(dataset=df, cluster_class=kmeans_assignment, ncolumns=5)
+
+
