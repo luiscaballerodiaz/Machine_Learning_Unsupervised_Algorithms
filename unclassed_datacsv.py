@@ -23,6 +23,9 @@ class DataUnclassedCSV:
         self.fig_height = 10
         self.bar_width = 0.25
         self.percentile = 0.02
+        self.max_clusters = 10
+        self.df_scaled = None
+        self.list_features = None
 
     def read_csv(self):
         """"Read csv and convert it to dataframe"""
@@ -83,7 +86,7 @@ class DataUnclassedCSV:
         plt.clf()
 
     def data_scrubbing(self, dataset, max_filter=False, min_filter=False, max_threshold=1, min_threshold=0,
-                       columns_to_remove='', concept1='', concept2='', encodings='', algorithm='standard'):
+                       columns_to_remove='', concept1='', concept2='', encodings=''):
         """Scrub data from input dataset by removing the introduced columns, duplicates, empty and wrong values,
         and apply one hot encoding for categorical features"""
         # Remove non-meaningful columns
@@ -129,11 +132,9 @@ class DataUnclassedCSV:
             dataset.reset_index(drop=True, inplace=True)
         print("Scrubbed data after eliminating non-consistent datasets type: {} and shape: {}\n".format(type(dataset),
                                                                                                         dataset.shape))
-        dataset_scaled = self.data_scaling(dataset, algorithm)
-        return dataset, dataset_scaled
+        return dataset
 
-    @staticmethod
-    def data_scaling(dataset, algorithm):
+    def data_scaling(self, dataset, algorithm):
         """Scaling data to normalization or standardization"""
         if algorithm.lower() == 'norm':
             scaler = MinMaxScaler()
@@ -142,90 +143,116 @@ class DataUnclassedCSV:
         else:
             print('Dataset NOT scaled type: {} and shape: {}\n'.format(type(dataset), dataset.shape))
             return None
+        self.list_features = dataset.keys()
         scaler.fit(dataset)
-        dataset_scaled = scaler.transform(dataset)
-        print("Dataset scaled type: {} and shape: {}\n".format(type(dataset_scaled), dataset_scaled.shape))
-        return dataset_scaled
+        self.df_scaled = scaler.transform(dataset)
+        print("Dataset scaled type: {} and shape: {}\n".format(type(self.df_scaled), self.df_scaled.shape))
 
-    def kmeans_clustering_tuning(self, df, max_clusters=25):
-        """Find the optimized number of clusters using a kmeans clustering sweep"""
-        model = KMeans(n_init=10, random_state=0)
+    def clustering_tuning(self, algorithm):
+        """Find the optimized number of clusters with a clustering sweep"""
+        ini_time = time.time()
+        if algorithm.lower() == 'kmeans':
+            model = KMeans(n_init=10, random_state=0)
+        elif algorithm.lower() == 'agglomerative':
+            model = AgglomerativeClustering(linkage='ward')
+        else:
+            print('Algorithm NOT correct')
+            return None
         inertia = []
         silhouette = []
-        for k in range(1, max_clusters + 1):
+        for k in range(1, self.max_clusters + 1):
             setattr(model, 'n_clusters', k)
-            clusters_class = model.fit_predict(df)
-            inertia.append(model.inertia_)
+            cluster_class = model.fit_predict(self.df_scaled)
+            total_inertia = 0
+            cluster_centers = np.array([self.df_scaled[cluster_class == cluster].mean(axis=0) for cluster in range(k)])
+            for i in range(self.df_scaled.shape[1]):
+                for j in range(self.df_scaled.shape[0]):
+                    total_inertia += (self.df_scaled[j, i] - cluster_centers[cluster_class[j], i]) ** 2
+            inertia.append(total_inertia)
             if k > 1:
-                silhouette.append(silhouette_score(df, clusters_class))
-        self.plot_sweep_cluster(inertia, silhouette, max_clusters)
+                silhouette.append(silhouette_score(self.df_scaled, cluster_class))
+        print(algorithm + ' tuning time: ' + str(time.time() - ini_time) + ' seconds\n')
+        return inertia, silhouette
 
-    def agglomerative_clustering_tuning(self, df):
-        linkage_array = ward(df)
-        plt.subplots(figsize=(self.fig_width, self.fig_height))
-        dendrogram(linkage_array, p=4, truncate_mode='level')
-        plt.savefig('Agglomerative dendrogram.png')
-
-    def plot_sweep_cluster(self, inertia, silhouette, max_clusters):
+    def plot_tuning(self, nplots, algorithm, inertia, silhouette):
         """Plot the cluster sweep plot vs inertia to tune the optimum number of clusters"""
         fig, ax1 = plt.subplots(figsize=(self.fig_width, self.fig_height))
         ax2 = ax1.twinx()
-        label1 = ax1.plot(range(1, max_clusters + 1), inertia, 'ro-', linewidth=2, label='Inertia')
-        label2 = ax2.plot(range(2, max_clusters + 1), silhouette, 'b^-', linewidth=2, label='Silhouette score')
+        inertia = np.array(inertia)
+        silhouette = np.array(silhouette)
+        if (len(algorithm) != nplots) or (inertia.shape[0] != nplots) or (silhouette.shape[0] != nplots):
+            print('Wrong dimensionality in the input data\n')
+            return None
+        cmap = cm.get_cmap('tab10')
+        colors = cmap.colors
+        plot_feat = []
+        for i in range(nplots):
+            plot_feat.append(ax1.plot(range(1, self.max_clusters + 1), inertia[i, :], color=colors[i], marker='o',
+                                      markersize=10, linewidth=2, label=algorithm[i] + ' inertia'))
+            plot_feat.append(ax2.plot(range(2, self.max_clusters + 1), silhouette[i, :], color=colors[i+5], marker='^',
+                                      markersize=10, linewidth=2, label=algorithm[i] + ' silhouette score'))
         plt.title('Cluster sweep tuning', fontsize=20, fontweight='bold')
         ax1.set_xlabel('Number of clusters', fontsize=14)
-        ax1.set_ylabel('Inertia', fontsize=14, color='r')
-        ax2.set_ylabel('Silhouette score', fontsize=14, color='b')
-        la = label1 + label2
-        lb = [la[0].get_label(), la[1].get_label()]
+        ax1.set_ylabel('Inertia (marker=o)', fontsize=14)
+        ax2.set_ylabel('Silhouette score (marker=^)', fontsize=14)
+        la = []
+        for i in range(nplots * 2):
+            la += plot_feat[i]
+        lb = [la[0].get_label(), la[1].get_label(), la[2].get_label(), la[3].get_label()]
         ax1.legend(la, lb, loc='upper center')
         ax1.grid(visible=True)
         ax2.grid(visible=True)
         plt.savefig('Cluster sweep tuning.png', bbox_inches='tight')
         plt.clf()
 
-    def apply_kmeans_clustering(self, df, list_features, n_clusters=3):
-        """Apply the kmeans algorithm and plot the clusters in the two PCA components"""
-        model = KMeans(n_clusters=n_clusters, n_init=10, random_state=0)
-        cluster_class = model.fit_predict(df)
-        cluster_centers = model.cluster_centers_
-        print('KMeans ClusteringAlgorithm...\n')
-        print("Cluster class type: {} and shape: {}".format(type(cluster_class), cluster_class.shape))
-        print("Cluster Centers type: {} and shape: {}\n".format(type(cluster_centers), cluster_centers.shape))
-        self.apply_pca_plot_clusters('KMeans', 1, df, cluster_class, n_clusters, list_features,
-                                     cluster_centers, ncomps=2)
+    def apply_clustering(self, algorithm, n_clusters=3):
+        """Apply the machine learning algorithm and plot the clusters in the two PCA components"""
+        if algorithm.lower() == 'kmeans':
+            model = KMeans(n_clusters=n_clusters, n_init=10, random_state=0)
+        elif algorithm.lower() == 'agglomerative':
+            model = AgglomerativeClustering(n_clusters=n_clusters, linkage='ward')
+            self.create_dendrogram(n_clusters)
+        else:
+            print('Algorithm NOT correct')
+            return None
+        cluster_class = model.fit_predict(self.df_scaled)
+        cluster_centers = np.array([self.df_scaled[cluster_class == cluster].mean(axis=0)
+                                    for cluster in range(n_clusters)])
+        print(algorithm + ' cluster class type: {} and shape: {}'.format(type(cluster_class), cluster_class.shape))
+        print(algorithm + ' cluster centers type: {} and shape: {}\n'.format(type(cluster_centers),
+                                                                             cluster_centers.shape))
+        self.apply_pca_plot_clusters(algorithm, 1, cluster_class, n_clusters, cluster_centers, ncomps=2)
+        return cluster_class
 
-    def apply_agglomerative_clustering(self, df, list_features, n_clusters=3):
-        """Apply the agglomerative clustering algorithm  and plot the clusters in the two PCA components"""
-        model = AgglomerativeClustering(n_clusters=3)
-        cluster_class = model.fit_predict(df)
-        print('Agglomerative Clustering Algorithm...\n')
-        print("Cluster class type: {} and shape: {}\n".format(type(cluster_class), cluster_class.shape))
-        self.apply_pca_plot_clusters('Agglomerative', 0, df, cluster_class, n_clusters, list_features, ncomps=2)
+    def create_dendrogram(self, n_clusters):
+        """Create dendrogram plot"""
+        linkage_array = ward(self.df_scaled)
+        plt.subplots(figsize=(self.fig_width, self.fig_height))
+        dendrogram(linkage_array, p=5, truncate_mode='level')
+        plt.title('Dendrogram for ' + str(n_clusters) + ' clusters', fontsize=20, fontweight='bold')
+        plt.xlabel('Sample Index', fontsize=14)
+        plt.ylabel('Cluster Distance', fontsize=14)
+        plt.grid()
+        plt.savefig('Agglomerative dendrogram ' + str(n_clusters) + ' clusters.png')
 
-    def apply_pca_plot_clusters(self, algorithm, pca_plots, df, cluster_class, n_clusters, list_features,
-                                cluster_centers=None, ncomps=2):
+    def apply_pca_plot_clusters(self, algorithm, pca_plots, cluster_class, n_clusters, cluster_centers, ncomps=2):
         """Apply PCA algorithm in the data and plot meaningful graphs"""
         pca = PCA(n_components=ncomps)
         try:
-            df = df.to_numpy()
+            self.df_scaled = self.df_scaled.to_numpy()
         except (Exception,):
             pass
-        df_pca = pca.fit_transform(df)
-        print("Data PCA type: {} and shape: {}".format(type(df_pca), df_pca.shape))
-        try:
-            cluster_centers_pca = pca.transform(cluster_centers)
-            print("Cluster Centers PCA type: {} and shape: {}\n".format(type(cluster_centers_pca),
-                                                                        cluster_centers_pca.shape))
-        except (Exception,):
-            cluster_centers_pca = None
-            print('Cluster Centers PCA not applying\n')
+        df_pca = pca.fit_transform(self.df_scaled)
+        print(algorithm + " data PCA type: {} and shape: {}".format(type(df_pca), df_pca.shape))
+        cluster_centers_pca = pca.transform(cluster_centers)
+        print(algorithm + " cluster centers PCA type: {} and shape: {}\n".format(type(cluster_centers_pca),
+                                                                                 cluster_centers_pca.shape))
         if ncomps >= 2:
             self.plot_clusters_pca(algorithm, df_pca, cluster_class, n_clusters, cluster_centers_pca)
         if pca_plots == 1:
-            self.plot_pca_breakdown(list_features, pca)
-            pca = PCA(n_components=df.shape[1])
-            pca.fit_transform(df)
+            self.plot_pca_breakdown(self.list_features, pca)
+            pca = PCA(n_components=self.df_scaled.shape[1])
+            pca.fit_transform(self.df_scaled)
             self.plot_pca_scree(pca)
 
     def plot_clusters_pca(self, algorithm, df_pca, cluster_class, n_clusters, cluster_centers_pca):
