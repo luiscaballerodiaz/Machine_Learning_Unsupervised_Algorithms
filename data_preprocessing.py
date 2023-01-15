@@ -12,11 +12,11 @@ class DataPreprocessing:
         self.percentile = 0.02
 
     def data_scrubbing(self, max_filter=False, min_filter=False, max_threshold=1, min_threshold=0,
-                       columns_to_remove='', concept1='', concept2='', encodings=''):
+                       columns_to_remove='', concept1='', concept2='', encodings='', class_column_name=''):
         """Scrub data from input dataset by removing the introduced columns, duplicates, empty and wrong values,
         and apply one hot encoding for categorical features"""
         self.remove_columns(columns_to_remove)
-        self.encodings(encodings)
+        self.encodings(encodings, class_column_name)
         self.remove_duplicates()
         self.remove_outliers(max_filter, min_filter, max_threshold, min_threshold)
         self.remove_empty_rows()
@@ -30,12 +30,15 @@ class DataPreprocessing:
         print("Scrubbed data after eliminating non-meaningful columns type: {} and shape: {}".format(type(self.df),
                                                                                                      self.df.shape))
 
-    def encodings(self, encodings):
+    def encodings(self, encodings, class_column_name):
         """One hot encoding"""
         if encodings:
+            output_backup = self.df[class_column_name]
+            self.df.drop(class_column_name, axis=1, inplace=True)
             for encoding in encodings:
                 self.df[encoding] = self.df[encoding].astype(str)
             self.df = pd.get_dummies(self.df, columns=encodings)
+            self.df = pd.concat([self.df, output_backup], axis=1)
         print("Scrubbed data after one hot encoding type: {} and shape: {}".format(type(self.df), self.df.shape))
 
     def remove_duplicates(self):
