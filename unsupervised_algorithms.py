@@ -14,13 +14,12 @@ from sklearn.decomposition import PCA
 class UnsupervisedAlgorithms:
     """Class to operate with a dataset in CSV format"""
 
-    def __init__(self, df_scaled, list_features):
+    def __init__(self, df_scaled):
         self.fig_width = 20
         self.fig_height = 10
         self.bar_width = 0.25
         self.max_clusters = 10
         self.df_scaled = df_scaled
-        self.list_features = list_features
 
     def clustering_tuning(self, algorithm):
         """Find the optimized number of clusters with a clustering sweep"""
@@ -147,10 +146,6 @@ class UnsupervisedAlgorithms:
                                                                                  cluster_centers_pca.shape))
         if ncomps >= 2:
             self.plot_clusters_pca(algorithm, parameters, df_pca, cluster_class, n_clusters, cluster_centers_pca)
-        self.plot_pca_breakdown(self.list_features, pca)
-        pca = PCA(n_components=self.df_scaled.shape[1])
-        pca.fit_transform(self.df_scaled)
-        self.plot_pca_scree(pca)
 
     def plot_clusters_pca(self, algorithm, parameters, df_pca, cluster_class, n_clusters, cluster_centers_pca):
         """Plot first vs second PCA component"""
@@ -174,42 +169,4 @@ class UnsupervisedAlgorithms:
         plt.legend()
         plt.grid()
         plt.savefig(algorithm + ' ' + str(n_clusters) + ' clusters plot.png', bbox_inches='tight')
-        plt.clf()
-
-    def plot_pca_breakdown(self, list_features, pca):
-        """Plot the PCA breakdown per each feature"""
-        _, ax = plt.subplots(figsize=(self.fig_width, self.fig_height))
-        plt.pcolormesh(pca.components_, cmap=plt.cm.cool)
-        plt.colorbar()
-        pca_yrange = [x + 0.5 for x in range(pca.components_.shape[0])]
-        pca_xrange = [x + 0.5 for x in range(pca.components_.shape[1])]
-        plt.xticks(pca_xrange, list_features, rotation=60, ha='center')
-        ax.xaxis.tick_top()
-        str_ypca = []
-        for i in range(pca.components_.shape[0]):
-            str_ypca.append('Component ' + str(i + 1))
-        plt.yticks(pca_yrange, str_ypca)
-        plt.xlabel("Feature", weight='bold', fontsize=14)
-        plt.ylabel("Principal components", weight='bold', fontsize=14)
-        plt.savefig('PCA breakdown.png', bbox_inches='tight')
-        plt.clf()
-
-    def plot_pca_scree(self, pca):
-        """Plot the scree plot of the PCA to understand the covered variance"""
-        fig, ax1 = plt.subplots(figsize=(self.fig_width, self.fig_height))
-        ax2 = ax1.twinx()
-        label1 = ax1.plot(range(1, len(pca.components_) + 1), pca.explained_variance_ratio_,
-                          'ro-', linewidth=2, label='Individual PCA variance')
-        label2 = ax2.plot(range(1, len(pca.components_) + 1), np.cumsum(pca.explained_variance_ratio_),
-                          'b^-', linewidth=2, label='Cumulative PCA variance')
-        plt.title('Scree Plot', fontsize=20, fontweight='bold')
-        ax1.set_xlabel('Principal Components', fontsize=14)
-        ax1.set_ylabel('Proportion of Variance Explained', fontsize=14, color='r')
-        ax2.set_ylabel('Cumulative Proportion of Variance Explained', fontsize=14, color='b')
-        la = label1 + label2
-        lb = [la[0].get_label(), la[1].get_label()]
-        ax1.legend(la, lb, loc='upper center')
-        ax1.grid(visible=True)
-        ax2.grid(visible=True)
-        plt.savefig('PCA scree plot.png', bbox_inches='tight')
         plt.clf()

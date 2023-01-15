@@ -18,7 +18,7 @@ data_analysis.histogram(dataset=sourcedf.iloc[:, 1:], plot_name='Original histog
 data_analysis.boxplot(dataset=df_unscaled, plot_name='Scrubbed boxplot', max_features_row=9)
 data_analysis.histogram(dataset=df_unscaled, plot_name='Scrubbed histogram', ncolumns=3)
 
-unsupervised = UnsupervisedAlgorithms(df_scaled, list_features)
+unsupervised = UnsupervisedAlgorithms(df_scaled)
 
 kmeans_inertia, kmeans_silhouette = unsupervised.clustering_tuning('KMeans')
 agg_inertia, agg_silhouette = unsupervised.clustering_tuning('Agglomerative')
