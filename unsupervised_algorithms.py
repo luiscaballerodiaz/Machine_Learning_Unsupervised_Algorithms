@@ -1,6 +1,4 @@
-import pandas as pd
 import numpy as np
-import math
 import time
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -16,15 +14,13 @@ from sklearn.decomposition import PCA
 class UnsupervisedAlgorithms:
     """Class to operate with a dataset in CSV format"""
 
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, df_scaled, list_features):
         self.fig_width = 20
         self.fig_height = 10
         self.bar_width = 0.25
-        self.percentile = 0.02
         self.max_clusters = 10
-        self.df_scaled = None
-        self.list_features = None
+        self.df_scaled = df_scaled
+        self.list_features = list_features
 
     def clustering_tuning(self, algorithm):
         """Find the optimized number of clusters with a clustering sweep"""
@@ -98,41 +94,7 @@ class UnsupervisedAlgorithms:
                         ha="center", va="center", color="k", fontweight='bold', fontsize=10)
         plt.savefig('DBSCAN parameter sweep.png', bbox_inches='tight')
         plt.clf()
-
         print('DBSCAN tuning time: ' + str(time.time() - ini_time) + ' seconds\n')
-
-    def plot_inertia_silhouette_tuning(self, algorithm, inertia, silhouette):
-        """Plot the cluster sweep plot vs inertia to tune the optimum number of clusters"""
-        fig, ax1 = plt.subplots(figsize=(self.fig_width, self.fig_height))
-        ax2 = ax1.twinx()
-        inertia = np.array(inertia)
-        silhouette = np.array(silhouette)
-        nplots = inertia.shape[0]
-        if (len(algorithm) != nplots) or (silhouette.shape[0] != nplots):
-            print('Wrong dimensionality in the input data\n')
-            return None
-        cmap = cm.get_cmap('tab10')
-        colors = cmap.colors
-        plot_feat = []
-        for i in range(nplots):
-            plot_feat.append(ax1.plot(range(1, self.max_clusters + 1), inertia[i, :], color=colors[i % len(colors)],
-                                      marker='o', markersize=10, linewidth=2, label=algorithm[i] + ' inertia'))
-            plot_feat.append(ax2.plot(range(2, self.max_clusters + 1), silhouette[i, :], marker='^', markersize=10,
-                                      color=colors[(i+5) % len(colors)], linewidth=2,
-                                      label=algorithm[i] + ' silhouette score'))
-        plt.title('Cluster sweep tuning', fontsize=20, fontweight='bold')
-        ax1.set_xlabel('Number of clusters', fontsize=14)
-        ax1.set_ylabel('Inertia (marker=o)', fontsize=14)
-        ax2.set_ylabel('Silhouette score (marker=^)', fontsize=14)
-        la = []
-        for i in range(nplots * 2):
-            la += plot_feat[i]
-        lb = [la[0].get_label(), la[1].get_label(), la[2].get_label(), la[3].get_label()]
-        ax1.legend(la, lb, loc='upper center')
-        ax1.grid(visible=True)
-        ax2.grid(visible=True)
-        plt.savefig('Cluster sweep tuning.png', bbox_inches='tight')
-        plt.clf()
 
     def apply_clustering(self, algorithm, **parameters):
         """Apply the machine learning algorithm and plot the clusters in the two PCA components"""
@@ -250,30 +212,4 @@ class UnsupervisedAlgorithms:
         ax1.grid(visible=True)
         ax2.grid(visible=True)
         plt.savefig('PCA scree plot.png', bbox_inches='tight')
-        plt.clf()
-
-    def plot_cluster_features(self, algorithm, dataset, cluster_class, ncolumns):
-        """Plot clusters features in a bar plot"""
-        n_clusters = max(cluster_class) + 1
-        fig, axes = plt.subplots(math.ceil(dataset.shape[1] / ncolumns), ncolumns,
-                                 figsize=(self.fig_width, self.fig_height))
-        spare_axes = ncolumns - dataset.shape[1] % ncolumns
-        if spare_axes == ncolumns:
-            spare_axes = 0
-        for axis in range(ncolumns - 1, ncolumns - 1 - spare_axes, -1):
-            fig.delaxes(axes[math.ceil(dataset.shape[1] / ncolumns) - 1, axis])
-        ax = axes.ravel()
-        cmap = cm.get_cmap('tab10')
-        colors = cmap.colors
-        for i in range(dataset.shape[1]):
-            for cluster in range(n_clusters):
-                ax[i].bar(1 + cluster * self.bar_width, dataset.iloc[cluster_class == cluster, i].mean(),
-                          color=colors[cluster % len(colors)], width=self.bar_width, edgecolor='black',
-                          label='cluster' + str(cluster))
-            ax[i].set_title(self.list_features[i], fontsize=10, y=1.0, pad=-14, fontweight='bold')
-            ax[i].grid(visible=True)
-            ax[i].tick_params(axis='both', labelsize=8)
-            ax[i].set_ylabel('Feature magnitude', fontsize=8)
-        ax[0].legend()
-        plt.savefig(algorithm + ' cluster features analysis.png', bbox_inches='tight')
         plt.clf()
