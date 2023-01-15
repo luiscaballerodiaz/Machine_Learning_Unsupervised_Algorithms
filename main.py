@@ -14,14 +14,15 @@ datacsv.unclassed_boxplot(dataset=df, plot_name='Scrubbed boxplot', max_features
 datacsv.unclassed_histogram(dataset=df, plot_name='Scrubbed histogram', ncolumns=3)
 
 kmeans_inertia, kmeans_silhouette = datacsv.clustering_tuning('KMeans')
-#agg_inertia, agg_silhouette = datacsv.clustering_tuning('Agglomerative')
+agg_inertia, agg_silhouette = datacsv.clustering_tuning('Agglomerative')
+datacsv.plot_inertia_silhouette_tuning(algorithm=['KMeans', 'Agglomerative'], inertia=[kmeans_inertia, agg_inertia],
+                                       silhouette=[kmeans_silhouette, agg_silhouette])
 
-#datacsv.plot_tuning(algorithm=['KMeans', 'Agglomerative'], inertia=[kmeans_inertia, agg_inertia],
-#                    silhouette=[kmeans_silhouette, agg_silhouette])
+datacsv.dbscan_tuning(eps_ini=0.4, eps_end=1.8, eps_incr=0.2, min_samples_ini=df.shape[1],
+                      min_samples_end=df.shape[1]*2, min_samples_incr=2)
 
-kmeans_assignment = datacsv.apply_clustering('KMeans', n_clusters=3)
-#agg_assignment = datacsv.apply_clustering('Agglomerative', n_clusters=3)
+kmeans_assignment = datacsv.apply_clustering('KMeans', n_clusters=3, n_init=10)
+agg_assignment = datacsv.apply_clustering('Agglomerative', n_clusters=3, linkage='ward')
+dbscan_assignment = datacsv.apply_clustering('DBSCAN', min_samples=19, eps=1.4)
 
-datacsv.plot_cluster_features(dataset=df, cluster_class=kmeans_assignment, ncolumns=5)
-
-
+datacsv.plot_cluster_features(algorithm='KMeans', dataset=df, cluster_class=kmeans_assignment, ncolumns=5)

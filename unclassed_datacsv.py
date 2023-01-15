@@ -7,6 +7,7 @@ import matplotlib.cm as cm
 from sklearn.cluster import KMeans
 from sklearn.cluster import AgglomerativeClustering
 from scipy.cluster.hierarchy import dendrogram, ward
+from sklearn.neighbors import NearestNeighbors
 from sklearn.cluster import DBSCAN
 from sklearn.metrics.cluster import silhouette_score
 from sklearn.decomposition import PCA
@@ -174,7 +175,56 @@ class DataUnclassedCSV:
         print(algorithm + ' tuning time: ' + str(time.time() - ini_time) + ' seconds\n')
         return inertia, silhouette
 
-    def plot_tuning(self, algorithm, inertia, silhouette):
+    def dbscan_tuning(self, eps_ini, eps_end, eps_incr, min_samples_ini, min_samples_end, min_samples_incr):
+        """Find the optimized eps and min_samples for DBSCAN algorithm"""
+        ini_time = time.time()
+        distances, indices = NearestNeighbors(n_neighbors=2).fit(self.df_scaled).kneighbors(self.df_scaled)
+        distances = np.sort(distances[:, 1])
+        plt.subplots(figsize=(self.fig_width, self.fig_height))
+        plt.plot(distances, color='b', linewidth=2)
+        plt.title('Distance to the closest datapoint', fontsize=24)
+        plt.xlabel('Number of datapoints', fontsize=14)
+        plt.ylabel('Distance', fontsize=14)
+        plt.grid()
+        plt.savefig('DBSCAN datapoints distance.png', bbox_inches='tight')
+        plt.clf()
+        eps_vector = np.round(np.arange(eps_ini, eps_end + eps_incr, eps_incr), 1)
+        min_samples_vector = range(min_samples_ini, min_samples_end + 1, min_samples_incr)
+        silhouette_matrix = np.zeros([len(eps_vector), len(min_samples_vector)])
+        clusters = np.zeros([len(eps_vector), len(min_samples_vector)])
+        for eps, i in zip(eps_vector, range(len(eps_vector))):
+            for min_samples, j in zip(min_samples_vector, range(len(min_samples_vector))):
+                model = DBSCAN(eps=eps, min_samples=min_samples)
+                cluster_class = model.fit_predict(self.df_scaled)
+                if max(cluster_class) < 1:
+                    silhouette_matrix[i, j] = -1
+                else:
+                    silhouette_matrix[i, j] = silhouette_score(
+                        self.df_scaled, cluster_class)
+                clusters[i, j] = max(cluster_class) + 1
+        fig, ax = plt.subplots(figsize=(self.fig_width, self.fig_height))
+        plt.pcolormesh(silhouette_matrix, cmap=plt.cm.PuBuGn)
+        plt.colorbar()
+        ax.set_xlabel('min_samples parameter', fontsize=14)
+        ax.set_ylabel('eps parameter', fontsize=14)
+        ax.set_title('DBSCAN parameter sweep by Silhouette score / Number of clusters', fontsize=24)
+        ax.set_xticks(np.arange(0.5, len(min_samples_vector) + 0.5), labels=min_samples_vector, fontsize=14)
+        ax.set_yticks(np.arange(0.5, len(eps_vector) + 0.5), labels=eps_vector, fontsize=14)
+        plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+        for i in range(len(min_samples_vector)):
+            for j in range(len(eps_vector)):
+                if round(silhouette_matrix[j, i], 2) == -1:
+                    string = ''
+                else:
+                    string = str(round(silhouette_matrix[j, i], 2))
+                ax.text(i + 0.5, j + 0.5, string + ' / ' + str(clusters[j, i]),
+                        ha="center", va="center", color="k", fontweight='bold', fontsize=10)
+        plt.savefig('DBSCAN parameter sweep.png', bbox_inches='tight')
+        plt.clf()
+
+        print('DBSCAN tuning time: ' + str(time.time() - ini_time) + ' seconds\n')
+
+    def plot_inertia_silhouette_tuning(self, algorithm, inertia, silhouette):
         """Plot the cluster sweep plot vs inertia to tune the optimum number of clusters"""
         fig, ax1 = plt.subplots(figsize=(self.fig_width, self.fig_height))
         ax2 = ax1.twinx()
@@ -188,10 +238,11 @@ class DataUnclassedCSV:
         colors = cmap.colors
         plot_feat = []
         for i in range(nplots):
-            plot_feat.append(ax1.plot(range(1, self.max_clusters + 1), inertia[i, :], color=colors[i], marker='o',
-                                      markersize=10, linewidth=2, label=algorithm[i] + ' inertia'))
-            plot_feat.append(ax2.plot(range(2, self.max_clusters + 1), silhouette[i, :], color=colors[i+5], marker='^',
-                                      markersize=10, linewidth=2, label=algorithm[i] + ' silhouette score'))
+            plot_feat.append(ax1.plot(range(1, self.max_clusters + 1), inertia[i, :], color=colors[i % len(colors)],
+                                      marker='o', markersize=10, linewidth=2, label=algorithm[i] + ' inertia'))
+            plot_feat.append(ax2.plot(range(2, self.max_clusters + 1), silhouette[i, :], marker='^', markersize=10,
+                                      color=colors[(i+5) % len(colors)], linewidth=2,
+                                      label=algorithm[i] + ' silhouette score'))
         plt.title('Cluster sweep tuning', fontsize=20, fontweight='bold')
         ax1.set_xlabel('Number of clusters', fontsize=14)
         ax1.set_ylabel('Inertia (marker=o)', fontsize=14)
@@ -206,23 +257,30 @@ class DataUnclassedCSV:
         plt.savefig('Cluster sweep tuning.png', bbox_inches='tight')
         plt.clf()
 
-    def apply_clustering(self, algorithm, n_clusters=3):
+    def apply_clustering(self, algorithm, **parameters):
         """Apply the machine learning algorithm and plot the clusters in the two PCA components"""
+        params = {}
+        for key, value in parameters.items():
+            params[key] = value
         if algorithm.lower() == 'kmeans':
-            model = KMeans(n_clusters=n_clusters, n_init=10, random_state=0)
+            model = KMeans(n_clusters=params['n_clusters'], n_init=params['n_init'], random_state=0)
         elif algorithm.lower() == 'agglomerative':
-            model = AgglomerativeClustering(n_clusters=n_clusters, linkage='ward')
-            self.create_dendrogram(n_clusters)
+            model = AgglomerativeClustering(n_clusters=params['n_clusters'], linkage=params['linkage'])
+            self.create_dendrogram(params['n_clusters'])
+        elif algorithm.lower() == 'dbscan':
+            model = DBSCAN(eps=params['eps'], min_samples=params['min_samples'])
         else:
             print('Algorithm NOT correct')
             return None
         cluster_class = model.fit_predict(self.df_scaled)
+        n_clusters = max(cluster_class) + 1
         cluster_centers = np.array([self.df_scaled[cluster_class == cluster].mean(axis=0)
                                     for cluster in range(n_clusters)])
         print(algorithm + ' cluster class type: {} and shape: {}'.format(type(cluster_class), cluster_class.shape))
         print(algorithm + ' cluster centers type: {} and shape: {}\n'.format(type(cluster_centers),
                                                                              cluster_centers.shape))
-        self.apply_pca_plot_clusters(algorithm, 1, cluster_class, n_clusters, cluster_centers, ncomps=2)
+        if n_clusters > 0:
+            self.apply_pca_plot_clusters(algorithm, parameters, cluster_class, n_clusters, cluster_centers, ncomps=2)
         return cluster_class
 
     def create_dendrogram(self, n_clusters):
@@ -236,7 +294,7 @@ class DataUnclassedCSV:
         plt.grid()
         plt.savefig('Agglomerative dendrogram ' + str(n_clusters) + ' clusters.png')
 
-    def apply_pca_plot_clusters(self, algorithm, pca_plots, cluster_class, n_clusters, cluster_centers, ncomps=2):
+    def apply_pca_plot_clusters(self, algorithm, parameters, cluster_class, n_clusters, cluster_centers, ncomps=2):
         """Apply PCA algorithm in the data and plot meaningful graphs"""
         pca = PCA(n_components=ncomps)
         try:
@@ -249,29 +307,28 @@ class DataUnclassedCSV:
         print(algorithm + " cluster centers PCA type: {} and shape: {}\n".format(type(cluster_centers_pca),
                                                                                  cluster_centers_pca.shape))
         if ncomps >= 2:
-            self.plot_clusters_pca(algorithm, df_pca, cluster_class, n_clusters, cluster_centers_pca)
-        if pca_plots == 1:
-            self.plot_pca_breakdown(self.list_features, pca)
-            pca = PCA(n_components=self.df_scaled.shape[1])
-            pca.fit_transform(self.df_scaled)
-            self.plot_pca_scree(pca)
+            self.plot_clusters_pca(algorithm, parameters, df_pca, cluster_class, n_clusters, cluster_centers_pca)
+        self.plot_pca_breakdown(self.list_features, pca)
+        pca = PCA(n_components=self.df_scaled.shape[1])
+        pca.fit_transform(self.df_scaled)
+        self.plot_pca_scree(pca)
 
-    def plot_clusters_pca(self, algorithm, df_pca, cluster_class, n_clusters, cluster_centers_pca):
+    def plot_clusters_pca(self, algorithm, parameters, df_pca, cluster_class, n_clusters, cluster_centers_pca):
         """Plot first vs second PCA component"""
         plt.subplots(figsize=(self.fig_width, self.fig_height))
         cmap = cm.get_cmap('tab10')
         colors = cmap.colors
+        if -1 in cluster_class:
+            plt.scatter(df_pca[cluster_class == -1, 0], df_pca[cluster_class == -1, 1], s=10, marker='o', lw=0,
+                        color='k', label='noise')
         for n in range(n_clusters):
             lab = 'points cluster' + str(n)
             labc = 'center cluster' + str(n)
             plt.scatter(df_pca[cluster_class == n, 0], df_pca[cluster_class == n, 1], s=10, marker='o', lw=0,
-                        color=colors[n], label=lab)
-            try:
-                plt.scatter(cluster_centers_pca[n, 0], cluster_centers_pca[n, 1], s=100, marker='^',
-                            edgecolor='k', lw=3, color=colors[n], label=labc)
-            except (Exception,):
-                pass
-        plt.title(algorithm + ' ' + str(n_clusters) + ' Clusters for Credit Card Customer',
+                        color=colors[n % len(colors)], label=lab)
+            plt.scatter(cluster_centers_pca[n, 0], cluster_centers_pca[n, 1], s=100, marker='^',
+                        edgecolor='k', lw=3, color=colors[n % len(colors)], label=labc)
+        plt.title(algorithm + ' with params ' + str(parameters) + ' and ' + str(n_clusters) + ' clusters',
                   fontsize=20, fontweight='bold')
         plt.xlabel('First PCA', fontsize=14)
         plt.ylabel('Second PCA', fontsize=14)
@@ -318,7 +375,7 @@ class DataUnclassedCSV:
         plt.savefig('PCA scree plot.png', bbox_inches='tight')
         plt.clf()
 
-    def plot_cluster_features(self, dataset, cluster_class, ncolumns):
+    def plot_cluster_features(self, algorithm, dataset, cluster_class, ncolumns):
         """Plot clusters features in a bar plot"""
         n_clusters = max(cluster_class) + 1
         fig, axes = plt.subplots(math.ceil(dataset.shape[1] / ncolumns), ncolumns,
@@ -334,11 +391,12 @@ class DataUnclassedCSV:
         for i in range(dataset.shape[1]):
             for cluster in range(n_clusters):
                 ax[i].bar(1 + cluster * self.bar_width, dataset.iloc[cluster_class == cluster, i].mean(),
-                          color=colors[cluster], width=self.bar_width, edgecolor='black', label='cluster' + str(cluster))
+                          color=colors[cluster % len(colors)], width=self.bar_width, edgecolor='black',
+                          label='cluster' + str(cluster))
             ax[i].set_title(self.list_features[i], fontsize=10, y=1.0, pad=-14, fontweight='bold')
             ax[i].grid(visible=True)
             ax[i].tick_params(axis='both', labelsize=8)
             ax[i].set_ylabel('Feature magnitude', fontsize=8)
         ax[0].legend()
-        plt.savefig('Cluster features analysis.png', bbox_inches='tight')
+        plt.savefig(algorithm + ' cluster features analysis.png', bbox_inches='tight')
         plt.clf()
