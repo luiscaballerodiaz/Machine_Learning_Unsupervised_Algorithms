@@ -7,7 +7,7 @@ import pandas as pd
 sourcedf = pd.read_csv('CC GENERAL.csv')
 print("Full source data from CSV type: {} and shape: {}\n".format(type(sourcedf), sourcedf.shape))
 
-preprocessing = DataPreprocessing(sourcedf)
+preprocessing = DataPreprocessing(sourcedf.copy())
 df_unscaled = preprocessing.data_scrubbing(columns_to_remove='CUST_ID', max_filter=True, max_threshold=100)
 list_features = df_unscaled.keys()
 df_scaled = preprocessing.data_scaling(algorithm='standard')
